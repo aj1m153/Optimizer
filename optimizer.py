@@ -44,6 +44,7 @@ class PortfolioOptimizer:
             import streamlit as st
             st.warning(f"No data found for: {', '.join(failed)}. These tickers were removed.")
             self.tickers = [t for t in self.tickers if t in df.columns]
+            self.num_assets = len(self.tickers)
 
         if df.empty or len(df.columns) < 2:
             raise ValueError(f"Not enough valid tickers. Failed: {failed}. Need at least 2 with data.")
