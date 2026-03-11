@@ -175,12 +175,12 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### Advanced Parameters")
+    _sim_options = [1_000, 2_500, 5_000, 10_000, 20_000]
+    _sim_default = min(_sim_options, key=lambda x: abs(x - risk["num_portfolios"]))
     with st.expander("Customise", expanded=False):
-        risk_free_rate = st.slider("Risk-Free Rate", 0.0, 0.10, risk["rf_rate"], 0.005, format="%.3f")
-        num_portfolios = st.select_slider("Simulations", options=[1_000, 2_500, 5_000, 10_000, 20_000],
-                                          value=risk["num_portfolios"], format_func=lambda x: f"{x:,}")
-    if "risk_free_rate" not in dir(): risk_free_rate = risk["rf_rate"]
-    if "num_portfolios" not in dir(): num_portfolios = risk["num_portfolios"]
+        risk_free_rate = st.slider("Risk-Free Rate", 0.0, 0.10, float(risk["rf_rate"]), 0.005, format="%.3f")
+        num_portfolios = st.select_slider("Simulations", options=_sim_options,
+                                          value=_sim_default, format_func=lambda x: f"{x:,}")
 
     st.markdown("---")
     run = st.button("⟳  Run Optimizer")
