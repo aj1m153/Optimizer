@@ -28,11 +28,27 @@ class PortfolioOptimizer:
         if isinstance(df.columns, pd.MultiIndex):
             df = df["Close"]
         else:
-            df = df[["Close"]] if "Close" in df.columns else df
+            if "Close" in df.columns:
+                df = df[["Close"]]
             if len(self.tickers) == 1:
                 df = df.rename(columns={"Close": self.tickers[0]})
         if isinstance(df, pd.Series):
             df = df.to_frame(self.tickers[0])
+
+        # Drop columns that are entirely NaN (bad tickers)
+        df = df.dropna(axis=1, how="all")
+
+        # Report which tickers failed
+        failed = [t for t in self.tickers if t not in df.columns]
+        if failed:
+            import streamlit as st
+            st.warning(f"No data found for: {', '.join(failed)}. These tickers were removed.")
+            self.tickers = [t for t in self.tickers if t in df.columns]
+
+        if df.empty or len(df.columns) < 2:
+            raise ValueError(f"Not enough valid tickers. Failed: {failed}. Need at least 2 with data.")
+
+        # Drop rows where ANY remaining ticker has NaN
         return df.dropna()
 
     def _portfolio_performance(self, weights):
