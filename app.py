@@ -113,7 +113,7 @@ RISK_PROFILES = {
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
 :root{--bg:#0a0c10;--surface:#111318;--surface2:#181c24;--border:#1f2530;--gold:#c9a84c;--gold-dim:#7a6230;--teal:#3ecfb2;--text:#e8e4da;--muted:#6b7280;--radius:12px;}
 html,body,[data-testid="stAppViewContainer"]{background:var(--bg)!important;color:var(--text)!important;font-family:'DM Sans',sans-serif;}
 [data-testid="stSidebar"]{background:var(--surface)!important;border-right:1px solid var(--border);}
@@ -129,10 +129,29 @@ h1,h2,h3{font-family:'DM Serif Display',serif!important;color:var(--text)!import
 hr{border-color:var(--border)!important;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.4rem 1.6rem;margin-bottom:1rem;}
 .ticker-tag{display:inline-block;background:var(--surface2);border:1px solid var(--gold-dim);border-radius:6px;padding:2px 10px;font-family:'DM Mono',monospace;font-size:.78rem;color:var(--gold);margin:2px;}
-.hero-title{font-family:'DM Serif Display',serif;font-size:2.6rem;line-height:1.1;color:var(--text);margin:0;}
-.hero-sub{color:var(--muted);font-size:.95rem;margin-top:.4rem;}
 .section-label{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.5rem;}
 input[type="text"]{background:var(--surface2)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:6px!important;font-family:'DM Mono',monospace!important;}
+
+/* ── Hero banner ── */
+.hero-wrap{position:relative;overflow:hidden;padding:3rem 0 2.6rem 0;margin-bottom:2.2rem;border-bottom:1px solid #1f2530;}
+.hero-wrap::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 120% at 60% 50%,rgba(201,168,76,.07) 0%,transparent 70%),radial-gradient(ellipse 40% 80% at 85% 20%,rgba(62,207,178,.05) 0%,transparent 60%);pointer-events:none;}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(201,168,76,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(201,168,76,.04) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;}
+.hero-eyebrow{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);opacity:.8;margin-bottom:.9rem;display:flex;align-items:center;gap:.6rem;}
+.hero-eyebrow::before{content:'';display:inline-block;width:28px;height:1px;background:var(--gold);opacity:.6;}
+.hero-title-main{font-family:'Playfair Display',serif;font-size:3.4rem;line-height:1.0;color:var(--text);margin:0;font-weight:700;letter-spacing:-.02em;}
+.hero-title-main em{font-style:italic;color:var(--gold);background:linear-gradient(135deg,#c9a84c,#f0d080,#c9a84c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero-pills{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.4rem;}
+.hero-pill{font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.1em;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:.25rem .85rem;display:flex;align-items:center;gap:.4rem;}
+.hero-pill span{width:5px;height:5px;border-radius:50%;background:var(--gold);display:inline-block;opacity:.7;}
+.hero-stat{text-align:right;}
+.hero-stat-num{font-family:'Playfair Display',serif;font-size:2.8rem;font-weight:700;color:var(--gold);line-height:1;background:linear-gradient(135deg,#c9a84c,#f0d080);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero-stat-label{font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-top:.2rem;}
+.hero-divider{width:1px;background:linear-gradient(180deg,transparent,var(--border),transparent);align-self:stretch;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.hero-wrap>*{animation:fadeUp .6s ease both;}
+.hero-eyebrow{animation-delay:.05s}
+.hero-title-main{animation-delay:.12s}
+.hero-pills{animation-delay:.22s}
 </style>
 """, unsafe_allow_html=True)
 
@@ -207,9 +226,36 @@ with st.sidebar:
 
 # ── Hero ───────────────────────────────────────────────────────────────────────
 st.markdown("""
-<div style="padding:2rem 0 1.4rem 0;border-bottom:1px solid #1f2530;margin-bottom:2rem;">
-  <p class="hero-title">Smart Portfolio<br><em>Optimizer</em></p>
-  <p class="hero-sub">Modern Portfolio Theory · Efficient Frontier · Monte Carlo Simulation</p>
+<div class="hero-wrap">
+  <div class="hero-grid"></div>
+  <div style="position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:2rem;flex-wrap:wrap;">
+    <div style="flex:1;min-width:260px;">
+      <div class="hero-eyebrow">Portfolio Intelligence Platform</div>
+      <h1 class="hero-title-main">Smart Portfolio<br><em>Optimizer</em></h1>
+      <div class="hero-pills">
+        <div class="hero-pill"><span></span>Modern Portfolio Theory</div>
+        <div class="hero-pill"><span></span>Efficient Frontier</div>
+        <div class="hero-pill"><span></span>Monte Carlo Simulation</div>
+        <div class="hero-pill"><span></span>Markowitz Optimisation</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:2.5rem;align-items:center;flex-shrink:0;">
+      <div class="hero-stat">
+        <div class="hero-stat-num">870+</div>
+        <div class="hero-stat-label">US Stocks</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">13</div>
+        <div class="hero-stat-label">Sectors</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">5k</div>
+        <div class="hero-stat-label">Simulations</div>
+      </div>
+    </div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
