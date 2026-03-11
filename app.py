@@ -236,12 +236,19 @@ if len(tickers) < 2:
     st.error("Please select at least 2 stocks to build a portfolio.")
     st.stop()
 
+@st.cache_data(show_spinner=False)
+def run_optimizer(tickers_tuple, start, end, rf_rate, n_portfolios):
+    opt  = PortfolioOptimizer(list(tickers_tuple), start, end, rf_rate)
+    res  = opt.simulate_portfolios(n_portfolios)
+    best = opt.get_optimal_portfolios(res)
+    corr = opt.correlation_matrix()
+    return opt, res, best, corr
+
 with st.spinner("Fetching data & running simulation…"):
     try:
-        optimizer = PortfolioOptimizer(tickers, str(start_date), str(end_date), risk_free_rate)
-        results   = optimizer.simulate_portfolios(num_portfolios)
-        optimal   = optimizer.get_optimal_portfolios(results)
-        corr      = optimizer.correlation_matrix()
+        optimizer, results, optimal, corr = run_optimizer(
+            tuple(tickers), str(start_date), str(end_date), risk_free_rate, num_portfolios
+        )
     except Exception as e:
         st.error(f"**Error fetching data:** {e}  \n*Tip: some tickers may not be available on stooq. Try removing them.*")
         st.stop()
