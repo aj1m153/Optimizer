@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import urllib.request
-import json
+import io
 
 
 class PortfolioOptimizer:
@@ -16,31 +16,30 @@ class PortfolioOptimizer:
         self.expected_returns = self.returns.mean() * 252
         self.cov_matrix = self.returns.cov() * 252
 
-    def _fetch_yahoo(self, ticker, start, end):
-        t1 = int(pd.Timestamp(start).timestamp())
-        t2 = int(pd.Timestamp(end).timestamp())
-        url = (
-            f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-            f"?period1={t1}&period2={t2}&interval=1d&events=adjclose"
-        )
+    def _fetch_stooq(self, ticker, start, end):
+        """Fetch daily close prices from stooq.com (no auth needed)."""
+        d1 = pd.Timestamp(start).strftime("%Y%m%d")
+        d2 = pd.Timestamp(end).strftime("%Y%m%d")
+        symbol = ticker.lower() + ".us"
+        url = f"https://stooq.com/q/d/l/?s={symbol}&d1={d1}&d2={d2}&i=d"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         })
         with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read())
-        result = data["chart"]["result"][0]
-        timestamps = result["timestamp"]
-        closes = result["indicators"]["adjclose"][0]["adjclose"]
-        dates = pd.to_datetime(timestamps, unit="s").normalize()
-        series = pd.Series(closes, index=dates, name=ticker, dtype=float)
+            content = resp.read().decode("utf-8")
+        if "No data" in content or len(content.strip()) < 50:
+            raise ValueError(f"No data returned for {ticker}. Check ticker symbol.")
+        df = pd.read_csv(io.StringIO(content), parse_dates=["Date"], index_col="Date")
+        df = df.sort_index()
+        series = df["Close"].rename(ticker).astype(float)
         return series.dropna()
 
     def _fetch_data(self):
         frames = {}
         for ticker in self.tickers:
-            frames[ticker] = self._fetch_yahoo(ticker, self.start_date, self.end_date)
-        return pd.DataFrame(frames).dropna()
+            frames[ticker] = self._fetch_stooq(ticker, self.start_date, self.end_date)
+        df = pd.DataFrame(frames)
+        return df.dropna()
 
     def _portfolio_performance(self, weights):
         w = np.asarray(weights)
@@ -49,32 +48,36 @@ class PortfolioOptimizer:
         sharpe = (ret - self.risk_free_rate) / vol if vol > 0 else 0.0
         return ret, vol, sharpe
 
-    def _minimize_slsqp(self, objective_fn, seed_weights):
-        """Pure numpy SLSQP-style optimisation — no scipy needed."""
-        from numpy.linalg import norm
-        w = np.array(seed_weights, dtype=float)
-        lr = 0.01
-        for _ in range(5000):
-            grad = np.zeros(self.num_assets)
-            eps = 1e-6
-            f0 = objective_fn(w)
-            for i in range(self.num_assets):
-                w[i] += eps
-                grad[i] = (objective_fn(w) - f0) / eps
-                w[i] -= eps
-            w -= lr * grad
-            # Project onto simplex (weights sum to 1, all >= 0)
-            w = self._project_simplex(w)
-        return w
-
     def _project_simplex(self, v):
-        """Project vector v onto the probability simplex."""
+        """Project vector onto probability simplex (weights >= 0, sum = 1)."""
         n = len(v)
         u = np.sort(v)[::-1]
         cssv = np.cumsum(u)
         rho = np.nonzero(u * np.arange(1, n + 1) > (cssv - 1))[0][-1]
         theta = (cssv[rho] - 1.0) / (rho + 1.0)
         return np.maximum(v - theta, 0)
+
+    def _minimize_projected_gradient(self, objective_fn, seed_weights):
+        """Projected gradient descent on the simplex — no scipy needed."""
+        w = np.array(seed_weights, dtype=float)
+        w = self._project_simplex(w)
+        lr = 0.005
+        best_w = w.copy()
+        best_val = objective_fn(w)
+        eps = 1e-6
+        for iteration in range(8000):
+            grad = np.zeros(self.num_assets)
+            f0 = objective_fn(w)
+            for i in range(self.num_assets):
+                w[i] += eps
+                grad[i] = (objective_fn(w) - f0) / eps
+                w[i] -= eps
+            w = self._project_simplex(w - lr * grad)
+            val = objective_fn(w)
+            if val < best_val:
+                best_val = val
+                best_w = w.copy()
+        return best_w
 
     def simulate_portfolios(self, num_portfolios=10000, seed=42):
         rng = np.random.default_rng(seed)
@@ -96,17 +99,12 @@ class PortfolioOptimizer:
         sharpes = simulation_results["sharpe"]
         vols    = simulation_results["volatility"]
         weights = simulation_results["weights"]
-
-        # Max Sharpe
         seed_ms = weights[np.nanargmax(sharpes)].copy()
-        opt_ms  = self._minimize_slsqp(lambda w: -self._portfolio_performance(w)[2], seed_ms)
+        opt_ms  = self._minimize_projected_gradient(lambda w: -self._portfolio_performance(w)[2], seed_ms)
         r_ms, v_ms, s_ms = self._portfolio_performance(opt_ms)
-
-        # Min Volatility
         seed_mv = weights[np.argmin(vols)].copy()
-        opt_mv  = self._minimize_slsqp(lambda w: self._portfolio_performance(w)[1], seed_mv)
+        opt_mv  = self._minimize_projected_gradient(lambda w: self._portfolio_performance(w)[1], seed_mv)
         r_mv, v_mv, s_mv = self._portfolio_performance(opt_mv)
-
         return {
             "max_sharpe":     {"return": r_ms, "volatility": v_ms, "sharpe": s_ms, "weights": opt_ms},
             "min_volatility": {"return": r_mv, "volatility": v_mv, "sharpe": s_mv, "weights": opt_mv},
