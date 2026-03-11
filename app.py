@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import altair as alt
 from optimizer import PortfolioOptimizer
+import yfinance as yf
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
