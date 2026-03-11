@@ -97,14 +97,14 @@ RISK_PROFILES = {
     },
     "🟡 Moderate": {
         "desc": "Balanced growth and income. Mix of stability and upside.",
-        "num_portfolios": 10000,
+        "num_portfolios": 3000,
         "rf_rate": 0.04,
         "sectors": ["Technology","Healthcare","Finance","Consumer Discretionary","Industrials"],
         "caps": ["Large Cap","Mid Cap"],
     },
     "🔴 Aggressive": {
         "desc": "Maximum growth. High volatility, high potential returns.",
-        "num_portfolios": 15000,
+        "num_portfolios": 5000,
         "rf_rate": 0.02,
         "sectors": ["Technology","Crypto & Blockchain","Energy","Consumer Discretionary"],
         "caps": ["Mid Cap","Small Cap","Thematic"],
@@ -238,19 +238,21 @@ if len(tickers) < 2:
 
 @st.cache_data(show_spinner=False)
 def run_optimizer(tickers_tuple, start, end, rf_rate, n_portfolios):
-    opt  = PortfolioOptimizer(list(tickers_tuple), start, end, rf_rate)
-    res  = opt.simulate_portfolios(n_portfolios)
-    best = opt.get_optimal_portfolios(res)
-    corr = opt.correlation_matrix()
-    return opt, res, best, corr
+    opt     = PortfolioOptimizer(list(tickers_tuple), start, end, rf_rate)
+    res     = opt.simulate_portfolios(n_portfolios)
+    best    = opt.get_optimal_portfolios()
+    corr    = opt.correlation_matrix()
+    prices  = opt.price_data.copy()
+    tickers_valid = opt.tickers
+    return res, best, corr, prices, tickers_valid
 
 with st.spinner("Fetching data & running simulation…"):
     try:
-        optimizer, results, optimal, corr = run_optimizer(
+        results, optimal, corr, price_data, tickers = run_optimizer(
             tuple(tickers), str(start_date), str(end_date), risk_free_rate, num_portfolios
         )
     except Exception as e:
-        st.error(f"**Error fetching data:** {e}  \n*Tip: some tickers may not be available on stooq. Try removing them.*")
+        st.error(f"**Error fetching data:** {e}")
         st.stop()
 
 returns    = results["returns"]
@@ -322,7 +324,7 @@ with tab3:
     st.markdown(f'<div style="font-family:monospace;font-size:.78rem;color:{MUTED};">ρ → +1: move together · ρ → −1: move inversely (max diversification)</div>', unsafe_allow_html=True)
 
 with tab4:
-    prices_norm = optimizer.price_data / optimizer.price_data.iloc[0] * 100
+    prices_norm = price_data / price_data.iloc[0] * 100
     prices_norm.index = pd.to_datetime(prices_norm.index)
     df_p = prices_norm.reset_index()
     df_p = df_p.rename(columns={df_p.columns[0]: "Date"})
