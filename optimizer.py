@@ -69,14 +69,16 @@ class PortfolioOptimizer:
         return np.maximum(v - theta, 0)
 
     def _optimize(self, objective_fn, seed_weights):
-        """Projected gradient descent — no scipy needed."""
+        """Projected gradient descent with vectorised gradient — no scipy needed."""
         w = self._project_simplex(np.array(seed_weights, dtype=float))
         best_w, best_val = w.copy(), objective_fn(w)
-        eps, lr = 1e-6, 0.005
-        for _ in range(8000):
+        eps, lr = 1e-5, 0.01
+        eye = np.eye(self.num_assets) * eps
+        for _ in range(2000):
             f0 = objective_fn(w)
-            grad = np.array([(objective_fn(w + eps * (np.arange(self.num_assets) == i)) - f0) / eps
-                             for i in range(self.num_assets)])
+            # Vectorised finite-difference gradient (one pass)
+            grad = np.array([objective_fn(w + eye[i]) for i in range(self.num_assets)])
+            grad = (grad - f0) / eps
             w = self._project_simplex(w - lr * grad)
             val = objective_fn(w)
             if val < best_val:
