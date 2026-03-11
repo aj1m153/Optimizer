@@ -325,7 +325,9 @@ with tab3:
 with tab4:
     prices_norm = optimizer.price_data / optimizer.price_data.iloc[0] * 100
     prices_norm.index = pd.to_datetime(prices_norm.index)
-    df_prices = prices_norm.reset_index().melt(id_vars="Date", var_name="Ticker", value_name="Indexed Price")
+    df_prices = prices_norm.reset_index()
+    df_prices = df_prices.rename(columns={df_prices.columns[0]: "Date"})
+    df_prices = df_prices.melt(id_vars="Date", var_name="Ticker", value_name="Indexed Price")
     line = alt.Chart(df_prices).mark_line(strokeWidth=1.8).encode(
         x=alt.X("Date:T", title="Date"),
         y=alt.Y("Indexed Price:Q", title="Indexed Price (base = 100)"),
