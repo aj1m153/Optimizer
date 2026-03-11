@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-import urllib.request
-import io
+import yfinance as yf
 
 
 class PortfolioOptimizer:
@@ -16,29 +15,24 @@ class PortfolioOptimizer:
         self.expected_returns = self.returns.mean() * 252
         self.cov_matrix = self.returns.cov() * 252
 
-    def _fetch_stooq(self, ticker, start, end):
-        """Fetch daily close prices from stooq.com (no auth needed)."""
-        d1 = pd.Timestamp(start).strftime("%Y%m%d")
-        d2 = pd.Timestamp(end).strftime("%Y%m%d")
-        symbol = ticker.lower() + ".us"
-        url = f"https://stooq.com/q/d/l/?s={symbol}&d1={d1}&d2={d2}&i=d"
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        })
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            content = resp.read().decode("utf-8")
-        if "No data" in content or len(content.strip()) < 50:
-            raise ValueError(f"No data returned for {ticker}. Check ticker symbol.")
-        df = pd.read_csv(io.StringIO(content), parse_dates=["Date"], index_col="Date")
-        df = df.sort_index()
-        series = df["Close"].rename(ticker).astype(float)
-        return series.dropna()
-
     def _fetch_data(self):
-        frames = {}
-        for ticker in self.tickers:
-            frames[ticker] = self._fetch_stooq(ticker, self.start_date, self.end_date)
-        df = pd.DataFrame(frames)
+        df = yf.download(
+            self.tickers,
+            start=self.start_date,
+            end=self.end_date,
+            auto_adjust=True,
+            progress=False,
+            threads=True,
+        )
+        # Handle single vs multi ticker column structure
+        if isinstance(df.columns, pd.MultiIndex):
+            df = df["Close"]
+        else:
+            df = df[["Close"]] if "Close" in df.columns else df
+            if len(self.tickers) == 1:
+                df = df.rename(columns={"Close": self.tickers[0]})
+        if isinstance(df, pd.Series):
+            df = df.to_frame(self.tickers[0])
         return df.dropna()
 
     def _portfolio_performance(self, weights):
@@ -49,7 +43,7 @@ class PortfolioOptimizer:
         return ret, vol, sharpe
 
     def _project_simplex(self, v):
-        """Project vector onto probability simplex (weights >= 0, sum = 1)."""
+        """Project onto probability simplex: weights >= 0 and sum to 1."""
         n = len(v)
         u = np.sort(v)[::-1]
         cssv = np.cumsum(u)
@@ -57,53 +51,40 @@ class PortfolioOptimizer:
         theta = (cssv[rho] - 1.0) / (rho + 1.0)
         return np.maximum(v - theta, 0)
 
-    def _minimize_projected_gradient(self, objective_fn, seed_weights):
-        """Projected gradient descent on the simplex — no scipy needed."""
-        w = np.array(seed_weights, dtype=float)
-        w = self._project_simplex(w)
-        lr = 0.005
-        best_w = w.copy()
-        best_val = objective_fn(w)
-        eps = 1e-6
-        for iteration in range(8000):
-            grad = np.zeros(self.num_assets)
+    def _optimize(self, objective_fn, seed_weights):
+        """Projected gradient descent — no scipy needed."""
+        w = self._project_simplex(np.array(seed_weights, dtype=float))
+        best_w, best_val = w.copy(), objective_fn(w)
+        eps, lr = 1e-6, 0.005
+        for _ in range(8000):
             f0 = objective_fn(w)
-            for i in range(self.num_assets):
-                w[i] += eps
-                grad[i] = (objective_fn(w) - f0) / eps
-                w[i] -= eps
+            grad = np.array([(objective_fn(w + eps * (np.arange(self.num_assets) == i)) - f0) / eps
+                             for i in range(self.num_assets)])
             w = self._project_simplex(w - lr * grad)
             val = objective_fn(w)
             if val < best_val:
-                best_val = val
-                best_w = w.copy()
+                best_val, best_w = val, w.copy()
         return best_w
 
     def simulate_portfolios(self, num_portfolios=10000, seed=42):
         rng = np.random.default_rng(seed)
         raw = rng.random((num_portfolios, self.num_assets))
         weights = raw / raw.sum(axis=1, keepdims=True)
-        er = self.expected_returns.values
-        cov = self.cov_matrix.values
+        er, cov = self.expected_returns.values, self.cov_matrix.values
         port_returns = weights @ er
         port_vols = np.sqrt(np.einsum("ij,jk,ik->i", weights, cov, weights))
         port_sharpes = (port_returns - self.risk_free_rate) / np.where(port_vols > 0, port_vols, np.nan)
-        return {
-            "returns": port_returns,
-            "volatility": port_vols,
-            "sharpe": port_sharpes,
-            "weights": weights,
-        }
+        return {"returns": port_returns, "volatility": port_vols, "sharpe": port_sharpes, "weights": weights}
 
     def get_optimal_portfolios(self, simulation_results):
         sharpes = simulation_results["sharpe"]
         vols    = simulation_results["volatility"]
         weights = simulation_results["weights"]
         seed_ms = weights[np.nanargmax(sharpes)].copy()
-        opt_ms  = self._minimize_projected_gradient(lambda w: -self._portfolio_performance(w)[2], seed_ms)
+        opt_ms  = self._optimize(lambda w: -self._portfolio_performance(w)[2], seed_ms)
         r_ms, v_ms, s_ms = self._portfolio_performance(opt_ms)
         seed_mv = weights[np.argmin(vols)].copy()
-        opt_mv  = self._minimize_projected_gradient(lambda w: self._portfolio_performance(w)[1], seed_mv)
+        opt_mv  = self._optimize(lambda w: self._portfolio_performance(w)[1], seed_mv)
         r_mv, v_mv, s_mv = self._portfolio_performance(opt_mv)
         return {
             "max_sharpe":     {"return": r_ms, "volatility": v_ms, "sharpe": s_ms, "weights": opt_ms},
